@@ -1,12 +1,10 @@
 local tv_ip = require("env_reader")
 
--- local tv_input = "HDMI_1" -- Input to which your Mac is connected
 local switch_input_on_wake = true -- Switch input to Mac when waking the TV
 local prevent_sleep_when_using_other_input = true -- Prevent sleep when TV is set to other input (ie: you're watching Netflix and your Mac goes to sleep)
 local debug = true  -- If you run into issues, set to true to enable debug messages
 local IP = tv_ip -- IP address for TV
 local mode = "pc" -- Mode for HDMI input
-local name = '"MacBook Pro"' -- Name for HDMI input
 local bscpylgtv = "/opt/homebrew/bin/bscpylgtvcommand" -- -- Full path to "bscpylgtvcommand" executable
 local disable_lgtv = false
 -- NOTE: You can disable this script by setting the above variable to true, or by creating a file named
@@ -21,6 +19,7 @@ local lgtv_cmd = lgtv_path.." "..tv_name
 -- local app_id = "com.webos.app."..tv_input:lower():gsub("_", "")
 local lgtv_ssl = true -- Required for firmware 03.30.16 and up. Also requires LGWebOSRemote version 2023-01-27 or newer.
 
+local tv_hdmi_ports = {"HDMI_1", "HDMI_2", "HDMI_3", "HDMI_4"}
 
 function exec_command(command)
   if lgtv_ssl then
@@ -50,43 +49,6 @@ end
 
 local app_id = lgtv_current_app_id()
 
--- Get the current active HDMI port
-function extractAppNameHdmi(inputString)
-  -- Find the last occurrence of a dot in the string
-  local lastDotIndex = inputString:find("[^.]*$")
-
-  -- Extract the substring after the last dot
-  local appName = inputString:sub(lastDotIndex)
-
-  print("EXECUTED extractAppName "..appName)
-  return appName
-end
-
-function getCurrentHdmiPort()
-  local current_app_id = lgtv_current_app_id()
-  local current_hdmi_port = extractAppNameHdmi(current_app_id)
-  print("EXECUTED getCurrentHdmiPort "..current_hdmi_port)
-  return current_hdmi_port
-end
-
--- Test the function with the provided input string
--- currentHdmiPort = getCurrentHdmiPort()
--- print("currentHdmiPort")
--- print(currentHdmiPort)
-currentHdmiPort = nil
-
--- (TV) HDMI input the mac is connected to
-function getTvInput(input)
-  local hdmiNumber = input:sub(string.len(input), -1)
-  print(hdmiNumber)
-  local tvInput = input:upper():sub(1, -2).."_"..hdmiNumber
-  print("EXECUTED getTvInput "..tvInput)
-  return tvInput
-end
-
-tv_input = nil
--- tv_input = getTvInput(currentHdmiPort)
-
 -- Get a list of audio devices connected by HDMI
 function getHDMIAudioDevices()
   local devices = hs.audiodevice.allDevices()
@@ -102,10 +64,11 @@ function getHDMIAudioDevices()
 end
 
 function change_input_settings()
-  -- hs.execute(bscpylgtv.." "..IP.." set_device_info "..tv_input.." "..mode.." "..name)
-  local command = bscpylgtv.." "..IP.." set_device_info "..tv_input.." "..mode.." PC"
-  print("COMMAND "..command)
-  hs.execute(command)
+  for _, hdmi_port in ipairs(tv_hdmi_ports) do
+    local command = bscpylgtv.." "..IP.." set_device_info "..hdmi_port.." "..mode.." PC"
+    print("COMMAND "..command)
+    hs.execute(command)
+  end
 end
 
 function tv_is_connected()
@@ -160,9 +123,6 @@ end
 
 if debug then
   print ("TV name: "..tv_name)
-  if tv_input then
-    print ("TV input: "..tv_input)
-  end
   print ("LGTV path: "..lgtv_path)
   print ("LGTV command: "..lgtv_cmd)
   print ("SSL: "..tostring(lgtv_ssl))
@@ -178,7 +138,6 @@ end
 
 -- System Watcher (Sleep, wake up...)
 systemWatcher = hs.caffeinate.watcher.new(function(eventType)
-  print("REACHED 1")
   if debug then print("Received event: "..(eventType or "")) end
 
   if lgtv_disabled() then
@@ -200,11 +159,10 @@ systemWatcher = hs.caffeinate.watcher.new(function(eventType)
       if debug then print("TV was turned on") end
 
       if lgtv_current_app_id() ~= app_id and switch_input_on_wake then
-        execute("startApp ssl com.webos.app."..tv_input:lower():gsub("_", ""))
+        execute("startApp ssl "..app_id:lower():gsub("_", ""))
         if debug then print("TV input switched to "..app_id) end
       end
 
-      print("REACHED 2")
       change_input_settings()
     end
 
@@ -226,24 +184,12 @@ systemWatcher = hs.caffeinate.watcher.new(function(eventType)
   end
 end)
 
--- Coroutine
-co = coroutine.create(function ()
-  currentHdmiPort = getCurrentHdmiPort()
-  coroutine.yield()
-  tv_input = getTvInput(currentHdmiPort)
-  coroutine.yield()
-  change_input_settings()
-  coroutine.yield()
-end)
-
 -- Screen Watcher (HDMI input)
 screenWatcher = hs.screen.watcher.new(function()
-  print("AAAAAAAAAAAAAAAAAAAAAAAAA")
   local screens = hs.screen.allScreens()
   local hdmiConnected = false
 
   for _, screen in ipairs(screens) do
-    -- print(screen:name())
     if tv_is_connected() then
       hdmiConnected = true
       break
@@ -252,18 +198,9 @@ screenWatcher = hs.screen.watcher.new(function()
 
   if hdmiConnected then
     print("LG TV display connected")
-    -- currentHdmiPort = getCurrentHdmiPort()
-    -- tv_input = getTvInput(currentHdmiPort)
-    -- change_input_settings()
-    coroutine.resume(co)
-    coroutine.resume(co)
-    coroutine.resume(co)
-    print(currentHdmiPort, tv_input)
+    change_input_settings()
   else
-    currentHdmiPort = nil
-    tv_input = nil
     print("LG TV display disconnected")
-    print(currentHdmiPort, tv_input)
   end
 end)
 
