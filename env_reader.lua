@@ -9,12 +9,14 @@ local function readEnvFile(filename)
   return env
 end
 
--- Read the .env file
-local env = readEnvFile(".env")
+return readEnvFile
 
--- Access the value of the variable "MY_VARIABLE" from the .env file
-local tv_ip = env["TV_IP"]
+-- -- Read the .env file
+-- local env = readEnvFile(".env")
 
-return {
-  tv_ip
-}
+-- -- Access the value of the variable "MY_VARIABLE" from the .env file
+-- local tv_ip = env["TV_IP"]
+
+-- return {
+--   tv_ip
+-- }
