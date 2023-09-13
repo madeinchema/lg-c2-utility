@@ -3,15 +3,18 @@ local utils = require("utils")
 
 local debug,
 switch_input_on_wake,
+prevent_sleep_when_using_other_input,
 screen_off_command =
     config.debug,
     config.switch_input_on_wake,
+    config.prevent_sleep_when_using_other_input,
     config.screen_off_command
 
 local tv_is_connected,
 lgtv_disabled,
 exec_command,
 isTvReachable,
+execute,
 lgtv_current_app_id,
 getHDMIAudioDevices,
 handleInputSettings =
@@ -19,13 +22,13 @@ handleInputSettings =
     utils.lgtv_disabled,
     utils.exec_command,
     utils.isTvReachable,
+    utils.execute,
     utils.lgtv_current_app_id,
     utils.getHDMIAudioDevices,
     utils.handleInputSettings
 
 local systemWatcher = hs.caffeinate.watcher.new(function(eventType)
   local app_id = utils.lgtv_current_app_id()
-  print("Received screenWatcher event. !!!!!!!!!!4")
 
   if debug then print("Received event: " .. (eventType or "")) end
 

@@ -1,38 +1,27 @@
 local config = require("config")
 
-local switch_input_on_wake,
-prevent_sleep_when_using_other_input,
-debug,
+local debug,
 TV_IP,
 mode,
 bscpylgtv,
 disable_lgtv,
-tv_name,
 connected_tv_identifiers,
-screen_off_command,
-lgtv_path,
 lgtv_cmd,
 lgtv_ssl,
-MAX_RETRIES,
 tv_hdmi_ports =
-    config.switch_input_on_wake,
-    config.prevent_sleep_when_using_other_input,
     config.debug,
     config.TV_IP,
     config.mode,
     config.bscpylgtv,
     config.disable_lgtv,
-    config.tv_name,
     config.connected_tv_identifiers,
-    config.screen_off_command,
-    config.lgtv_path,
     config.lgtv_cmd,
     config.lgtv_ssl,
-    config.MAX_RETRIES,
     config.tv_hdmi_ports
 
 
 local M = {}
+
 
 local function exec_command(command)
   if lgtv_ssl then
@@ -47,6 +36,7 @@ local function exec_command(command)
 
   return hs.execute(command)
 end
+
 
 local function lgtv_current_app_id()
   local foreground_app_info = exec_command("getForegroundAppInfo")
@@ -76,6 +66,7 @@ local function getHDMIAudioDevices()
   return hdmiDevices
 end
 
+
 local function change_input_settings()
   for _, hdmi_port in ipairs(tv_hdmi_ports) do
     local command = bscpylgtv .. " " .. TV_IP .. " set_device_info " .. hdmi_port .. " " .. mode .. " PC"
@@ -94,11 +85,9 @@ local function tv_is_connected()
   return false
 end
 
+
 local function isTvReachable()
-  print("1")
-  print(hs.execute("lgtv scan ssl"))
   local success, err = pcall(hs.execute("lgtv scan ssl"))
-  print("2")
 
   if err then
     print("Error executing command: " .. err)
@@ -124,6 +113,7 @@ local function isTvReachable()
   end
 end
 
+
 local function dump_table(o)
   if type(o) == 'table' then
     local s = '{ '
@@ -147,6 +137,7 @@ local function execute(command)
   return hs.execute(command)
 end
 
+
 -- Source: https://stackoverflow.com/a/4991602
 local function file_exists(name)
   local f = io.open(name, "r")
@@ -162,22 +153,6 @@ local function lgtv_disabled()
   return disable_lgtv or file_exists("./disable_lgtv") or file_exists(os.getenv('HOME') .. "/.disable_lgtv")
 end
 
-if debug then
-  print("TV name: " .. tv_name)
-  print("TV IP: " .. TV_IP)
-  print("LGTV path: " .. lgtv_path)
-  print("LGTV command: " .. lgtv_cmd)
-  print("SSL: " .. tostring(lgtv_ssl))
-  print("App ID: " .. app_id)
-  print("lgtv_disabled: " .. tostring(lgtv_disabled()))
-  if not lgtv_disabled() then
-    print(exec_command("swInfo"))
-    print(exec_command("getForegroundAppInfo"))
-    print("Connected screens: " .. dump_table(hs.screen.allScreens()))
-    print("TV is connected? " .. tostring(tv_is_connected()))
-  end
-end
-
 
 local function handleInputSettings()
   if tv_is_connected() then
@@ -185,12 +160,10 @@ local function handleInputSettings()
   end
 end
 
--- Execute and handle errors
-local function executeInputSettingsHandler(eventType)
-  local retryCount = 0
-  print("Received screenWatcher event. !!!!!!!!!!3")
 
-  print("Received systemWatcher event: " .. tostring(eventType))
+-- Execute and handle errors
+local function executeInputSettingsHandler(eventType, retryCount)
+  retryCount = retryCount or 0
   local MAX_RETRIES = 3
 
   local success, err = pcall(handleInputSettings, eventType)
@@ -199,20 +172,20 @@ local function executeInputSettingsHandler(eventType)
   else
     if retryCount < MAX_RETRIES then
       print("Error encountered " .. err)
-      print("Retrying in 60 seconds...")
-      retryCount = retryCount + 1
-      hs.timer.doAfter(3, function() executeInputSettingsHandler(eventType) end)
+      print("Retrying in 3 seconds...")
+      hs.timer.doAfter(3, function() executeInputSettingsHandler(eventType, retryCount + 1) end)
     else
       print("Error encountered after maximum retires: " .. err)
-      -- Display macOS notification
       hs.notify.new({
         title = "Hammerspoon Error - LG TV",
-        informativeText = "Error encountered after maximum retries: " .. err
+        informativeText = "Error encountered after maximum retries."
       }):send()
     end
   end
 end
 
+
+M.app_id = app_id
 M.exec_command = exec_command
 M.lgtv_current_app_id = lgtv_current_app_id
 M.getHDMIAudioDevices = getHDMIAudioDevices
